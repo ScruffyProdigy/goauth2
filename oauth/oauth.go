@@ -41,6 +41,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -273,7 +274,7 @@ func (t *Transport) updateToken(tok *Token, v url.Values) error {
 		}
 	case "text/plain":
 		body := make([]byte, r.ContentLength)
-		_, err = r.Body.Read(body)
+		body, err = ioutil.ReadAll(r.Body)
 		if err != nil {
 			return err
 		}
