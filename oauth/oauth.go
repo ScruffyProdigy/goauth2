@@ -38,6 +38,8 @@
 package oauth
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -49,6 +51,15 @@ import (
 	"strings"
 	"time"
 )
+
+var (
+	pool *x509.CertPool
+)
+
+func init() {
+	pool = x509.NewCertPool()
+	pool.AppendCertsFromPEM(pemCerts)
+}
 
 // Cache specifies the methods that implement a Token cache.
 type Cache interface {
@@ -140,11 +151,8 @@ func (t *Transport) Client() *http.Client {
 	return &http.Client{Transport: t}
 }
 
-func (t *Transport) transport() http.RoundTripper {
-	if t.Transport != nil {
-		return t.Transport
-	}
-	return http.DefaultTransport
+func (t *Transport) transport() http.Transport {
+	return http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool}}
 }
 
 // AuthCodeURL returns a URL that the end-user should be redirected to,
@@ -223,7 +231,8 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	// Make the HTTP request.
 	req.Header.Set("Authorization", "OAuth "+t.AccessToken)
-	return t.transport().RoundTrip(req)
+	transport := t.transport()
+	return transport.RoundTrip(req)
 }
 
 // Refresh renews the Transport's AccessToken using its RefreshToken.
@@ -250,7 +259,8 @@ func (t *Transport) Refresh() error {
 func (t *Transport) updateToken(tok *Token, v url.Values) error {
 	v.Set("client_id", t.ClientId)
 	v.Set("client_secret", t.ClientSecret)
-	r, err := (&http.Client{Transport: t.transport()}).PostForm(t.TokenURL, v)
+	transport := t.transport()
+	r, err := (&http.Client{Transport: &transport}).PostForm(t.TokenURL, v)
 	if err != nil {
 		return err
 	}
